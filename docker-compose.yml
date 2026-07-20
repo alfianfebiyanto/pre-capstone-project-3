@@ -1,0 +1,136 @@
+version: '3.8'
+
+# Konfigurasi umum untuk service Airflow
+x-airflow-common: &airflow-common
+  image: apache/airflow:2.9.1          
+  environment: &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    # Metadata database (Airflow)
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@pre-airflow-db:5432/airflow
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.session,airflow.api.auth.backend.basic_auth
+    AIRFLOW_UID: ${AIRFLOW_UID:-50000}
+
+    # Koneksi ke database project (source & warehouse sama)
+    AIRFLOW_CONN_SOURCE_POSTGRES: postgresql://pre-caps3-user:pre-caps3-pass@pre-capstone-3:5432/pre-capstone3-db
+    AIRFLOW_CONN_WAREHOUSE_POSTGRES: postgresql://pre-caps3-user:pre-caps3-pass@pre-capstone-3:5432/pre-capstone3-db
+
+    # >>> TAMBAHKAN INI <
+    DB_USER: pre-caps3-user
+    DB_PASSWORD: pre-caps3-pass
+    DB_HOST: pre-capstone-3
+    DB_PORT: "5432"
+    DB_NAME: pre-capstone3-db
+
+    # scripts python
+    PYTHONPATH: /opt/airflow/scripts  
+
+    # Path Data Lake di dalam container
+    DATA_LAKE_BASE_PATH: /opt/airflow/data_lake
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./include:/opt/airflow/include
+    - ./logs:/opt/airflow/logs
+    - ./plugins:/opt/airflow/plugins
+    - ./config:/opt/airflow/config
+    - ./data_lake:/opt/airflow/data_lake
+    - ./scripts:/opt/airflow/scripts   # <-- tambahin ini saran claude
+    - ./sql:/opt/airflow/sql   # <-- tambahin ini saran claude
+  
+  user: "${AIRFLOW_UID:-50000}:0"
+  depends_on:
+    pre-airflow-db:
+      condition: service_healthy
+    pre-capstone-3:
+      condition: service_healthy
+
+services:
+
+  # ==============================
+  # +      Airflow Database      +
+  # ==============================
+
+  pre-airflow-db:
+    image: postgres:16-alpine
+    container_name: pre-airflow-db
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - pre-airflow-metadata-data:/var/lib/postgresql/data
+    ports:
+      - "5446:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+
+  # ==================================
+  # +      Pre-Capstone-Poject-3     +
+  # ==================================
+  pre-capstone-3:
+    image: postgres:16-alpine
+    container_name: pre-capstone-3
+    environment:
+      POSTGRES_USER: pre-caps3-user
+      POSTGRES_PASSWORD: pre-caps3-pass
+      POSTGRES_DB: pre-capstone3-db
+    volumes:
+      - pre-capstone3-data:/var/lib/postgresql/data
+    ports:
+      - "5447:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "pre-caps3-user", "-d", "pre-capstone3-db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # =================================
+  # +      Inisialisasi Airflow     +
+  # =================================
+  airflow-init:
+    <<: *airflow-common
+    container_name: pre-airflow-init
+    command:
+      - bash
+      - -c
+      - |
+        airflow db migrate &&
+        airflow users create \
+          --username admin \
+          --password admin \
+          --firstname Airflow \
+          --lastname Admin \
+          --role Admin \
+          --email admin@example.com || true
+    restart: "no"
+
+  # ==============================
+  # +      Airflow Scheduler     +
+  # ==============================
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: pre-airflow-scheduler
+    command: scheduler
+    restart: unless-stopped
+
+  # ==============================
+  # +      Airflow Webserver     +
+  # ==============================
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: pre-airflow-webserver
+    command: webserver
+    ports:
+      - "8084:8080"
+    restart: unless-stopped
+    
+
+volumes:
+  pre-airflow-metadata-data:
+  pre-capstone3-data:

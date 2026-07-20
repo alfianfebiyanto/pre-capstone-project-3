@@ -1,0 +1,16 @@
+# Environment
+venv/
+.env
+
+# Python
+__pycache__/
+readme.py
+
+# Data lake 
+data_lake/raw/*.csv
+data_lake/raw/*.parquet
+
+data_lake/staging/*.csv
+data_lake/staging/*.parquet
+
+*.log
