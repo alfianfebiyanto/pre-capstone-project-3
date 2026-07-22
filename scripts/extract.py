@@ -1,35 +1,97 @@
-# Import Library di extract.py
-import os
+# ============================
+# +     Import Libarary      +
+# ============================
+
 import re
-import gc
-import requests
-import pandas as pd
 from pathlib import Path
 
-# ====================================
-# +      Function in exctract.py     +
-# ====================================
+import pandas as pd
+import requests
 
-def download(url, output_dir, file_name):
-    os.makedirs(output_dir, exist_ok=True)
-    destination = os.path.join(output_dir, file_name)
-    if os.path.exists(destination):
-        print(f"✔ File sudah ada : {destination}")
+# Set-up logging 
+from utils_helper import setup_logger
+logger = setup_logger(__name__)
+
+# ===============================
+# +     Path Configuration      +
+# ===============================
+TAXI_TRIPS_URL = "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2026-01.parquet"
+ZONE_TAXI_URL = "https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv"
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+RAW_PATH = BASE_DIR / "data_lake" / "raw"
+STAG_PATH = BASE_DIR / "data_lake" / "staging"
+
+RAW_ZONE_TAXI = RAW_PATH / "taxi-zone.csv"
+RAW_TRIPS_TAXI = RAW_PATH / "taxi-trips.parquet"
+
+def download(url: str, output_dir: Path, file_name: str) -> Path:
+
+    """
+    Mengunduh file dari URL ke direktori tujuan dan memvalidasi ukuran file.
+
+    Args:
+
+        url (str): URL sumber file yang akan diunduh.
+        output_dir (Path): Direktori tujuan penyimpanan file.
+        file_name (str): Nama file yang akan disimpan.
+
+    Returns:
+
+        Path: Path lengkap menuju file yang berhasil diunduh.
+
+    Raises:
+
+        ValueError: Jika file hasil unduhan berukuran 0 byte.
+        requests.RequestException: Jika terjadi kesalahan pada koneksi HTTP.
+    """
+
+    # 1. Buat direktori tujuan jika belum ada
+    output_dir.mkdir(parents=True, exist_ok=True)
+    destination = output_dir / file_name
+
+    # 2. Lewati proses jika file sudah tersedia
+    if destination.exists():
+        logger.info("File already exists: %s", destination)
         return destination
-    print(f"📥 Downloading {url}")
-    response = requests.get(url, stream=True)
-    response.raise_for_status()
-    with open(destination, "wb") as file:
-        for chunk in response.iter_content(chunk_size=8192):
-            if chunk:
-                file.write(chunk)
-    print(f"✅ Download selesai : {destination}")
-    return destination
+
+    # 3. Unduh file dan simpan ke direktori tujuan
+    logger.info("Downloading from %s", url)
+    try:
+        response = requests.get(url, stream=True, timeout=(10, 300))
+        response.raise_for_status()
+
+        with open(destination, "wb") as file:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    file.write(chunk)
+
+        # 4. Validasi ukuran file tidak 0 byte
+        if destination.stat().st_size == 0:
+            raise ValueError(f"Downloaded file is empty (0 bytes): {destination}")
+
+        logger.info("Download completed: %s", destination)
+        return destination
+
+    except Exception:
+        logger.exception("Failed to download file from %s", url)
+        raise
 
 
 def clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
-    """Mengubah nama kolom DataFrame menjadi snake_case yang konsisten.
+
     """
+    Mengubah nama kolom DataFrame menjadi format snake_case yang konsisten.
+
+    Args:
+
+        df (pd.DataFrame): DataFrame yang akan dibersihkan nama kolomnya.
+
+    Returns:
+
+        pd.DataFrame: DataFrame dengan nama kolom berformat snake_case.
+    """
+
     new_cols = []
     for col in df.columns:
         # 1. Tangani akhiran 'ID' agar berubah jadi '_id' bukan '_i_d'
@@ -48,101 +110,115 @@ def clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
     df.columns = new_cols
     return df
 
-def save_data(df, folder_path, file_name):
-    os.makedirs(folder_path, exist_ok=True)
-    path = os.path.join(folder_path, file_name)
 
-    if file_name.endswith(".parquet"):
-        df.to_parquet(path, index=False)
+def save_data(df: pd.DataFrame, folder_path: Path, file_name: str) -> None:
 
-    elif file_name.endswith(".csv"):
-        df.to_csv(path, index=False)
-
-    else:
-        raise ValueError("Gunakan nama file berakhiran .parquet atau .csv")
-
-    print(f"Saved to: {path}")
-
-
-# ===============================
-# +      Path Configuration     +
-# ===============================
-TAXI_TRIPS_URL = "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2026-01.parquet"
-ZONE_TAXI_URL  = "https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv"
-BASE_DIR = Path(__file__).resolve().parent.parent
-RAW_PATH = BASE_DIR / "data_lake" / "raw"
-STAG_PATH = BASE_DIR / "data_lake" / "staging"
-RAW_ZONE_TAXI  = RAW_PATH / "taxi-zone.csv"
-RAW_TRIPS_TAXI = RAW_PATH / "taxi-trips.parquet"
-
-
-# ==============================
-# +      Exctract Pipeline     +
-# ==============================
-def run_extraction():
     """
-    Menjalankan alur ekstraksi, pembersihan, dan penyiapan staging.
-    Aman dijalankan berulang kali (Idempotent).
-    """
-    print("-------  [1/4] EXTRACTION  -------")
+    Menyimpan DataFrame ke dalam format CSV atau Parquet.
 
+    Args:
+
+        df (pd.DataFrame): DataFrame yang akan disimpan.
+        folder_path (Path): Direktori tujuan penyimpanan.
+        file_name (str): Nama file tujuan (harus berakhiran .csv atau .parquet).
+
+    Raises:
+    
+        ValueError: Jika ekstensi nama file bukan .csv atau .parquet.
+    """
+
+    # 1. Buat folder tujuan jika belum ada
+    folder_path.mkdir(parents=True, exist_ok=True)
+    destination = folder_path / file_name
+
+    # 2. Simpan DataFrame sesuai format file
     try:
-        # 1. Pastikan folder tujuan RAW_PATH dan STAG_PATH sudah dibuat
+        if file_name.endswith(".parquet"):
+            df.to_parquet(destination, index=False)
+        elif file_name.endswith(".csv"):
+            df.to_csv(destination, index=False)
+        else:
+            raise ValueError("File name must end with .parquet or .csv")
+
+        logger.info("Saved dataset to %s", destination)
+
+    except Exception:
+        logger.exception("Failed to save dataset to %s", destination)
+        raise
+
+
+def exctraction_stage() -> None:
+
+    """
+    Menjalankan seluruh alur ekstraksi, pembersihan, dan penyiapan staging area.
+
+    Fungsi ini dirancang bersifat idempotent sehingga aman dijalankan berulang kali.
+
+    Raises:
+
+        Exception: Jika terjadi kesalahan pada salah satu tahap ekstraksi.
+    """
+
+    logger.info("Starting extraction pipeline execution")
+
+    # 1. Pastikan folder tujuan RAW_PATH dan STAG_PATH sudah dibuat
+    try:
         RAW_PATH.mkdir(parents=True, exist_ok=True)
         STAG_PATH.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        logger.exception("Failed to create raw or staging directories")
+        raise
 
-        
-        # 2. Download File Raw (Melakukan caching: skip jika file lokal sudah ada)
-        print("-------  DOWNLOADING FILE RAW -------")
-        download(
-            url=ZONE_TAXI_URL,
-            output_dir=RAW_PATH,
-            file_name="taxi-zone.csv"
-        )
+    # 2. Unduh dataset mentah
+    try:
+        logger.info("Downloading raw datasets")
+        download(url=ZONE_TAXI_URL, output_dir=RAW_PATH, file_name="taxi-zone.csv")
+        download(url=TAXI_TRIPS_URL, output_dir=RAW_PATH, file_name="taxi-trips.parquet")
+    except Exception:
+        logger.exception("Failed during raw datasets download step")
+        raise
 
-        download(
-            url=TAXI_TRIPS_URL,
-            output_dir=RAW_PATH,
-            file_name="taxi-trips.parquet"
-        )
-
-        # 3. Reading & Cleaning Data Raw - Taxi Zones
-        print("-------  CLEANING RAW FILE: ZONES  -------")
+    # 3. Proses dataset taxi zones
+    try:
+        logger.info("Processing taxi zone dataset")
         df_zone = pd.read_csv(RAW_ZONE_TAXI)
         df_zone_clean = clean_column_names(df_zone)
 
-        # Handling NULL Values pada Lookup Zone
-        zone_cols = ['zone', 'borough', 'service_zone']
+        # Handling NULL values pada Lookup Zone
+        zone_cols = ["zone", "borough", "service_zone"]
         for col in zone_cols:
             if col in df_zone_clean.columns:
-                df_zone_clean[col] = df_zone_clean[col].fillna('Unknown')
+                df_zone_clean[col] = df_zone_clean[col].fillna("Unknown")
 
-        # Save Zone ke Area Staging
-        print("-------  SAVE ZONE TO STAGING  -------")
+        # Simpan Zone ke area staging
+        logger.info("Saving processed taxi zone dataset to staging")
         save_data(df_zone_clean, STAG_PATH, "stag-zone-taxi.csv")
-        
-        # Free memory untuk dataframe zone
-        del df_zone, df_zone_clean
-        gc.collect()
 
-        # 4. Reading & Cleaning Data Raw - Taxi Trips
-        print("-------  CLEANING RAW FILE: TRIPS  -------")
+        # Membebaskan memori yang tidak lagi digunakan
+        del df_zone, df_zone_clean
+
+    except Exception:
+        logger.exception("Failed during taxi zone dataset processing step")
+        raise
+
+    # 4. Proses dataset taxi trips
+    try:
+        logger.info("Processing taxi trip dataset")
         df_trips = pd.read_parquet(RAW_TRIPS_TAXI)
         df_trips_clean = clean_column_names(df_trips)
 
-        # Save Trips ke Area Staging
-        print("-------  SAVE TRIPS TO STAGING  -------")
+        # Simpan Trips ke area staging
+        logger.info("Saving processed taxi trip dataset to staging")
         save_data(df_trips_clean, STAG_PATH, "stag-trip-taxi.parquet")
 
-        # Free memory untuk dataframe trips
+        # Membebaskan memori yang tidak lagi digunakan
         del df_trips, df_trips_clean
-        gc.collect()
 
-        print("✅ Extraction & Staging Selesai dengan Lancar!")
+    except Exception:
+        logger.exception("Failed during taxi trip dataset processing step")
+        raise
 
-    except Exception as e:
-        print(f"❌ Terjadi kesalahan saat proses ekstraksi: {e}")
-        raise e
+    logger.info("Extraction pipeline completed successfully")
 
 if __name__ == "__main__":
-    run_extraction()
+    exctraction_stage()
