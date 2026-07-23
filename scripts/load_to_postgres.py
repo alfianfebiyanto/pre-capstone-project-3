@@ -3,20 +3,24 @@
 # ============================
 
 import io
+import uuid
 import pandas as pd
-import pyarrow.parquet as pq
 from pathlib import Path
-
+import pyarrow.parquet as pq
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
 from initial_database import DatabaseConnection
+from utils_helper import STAG_TRIP_TAXI, STAG_ZONE_TAXI, AuditLogger
 
 # Set-up logging 
 from utils_helper import setup_logger
 logger = setup_logger(__name__)
 
 
+# ===============================
+# +      Helper Functions       +
+# ===============================
 class DataLoader:
 
     """Mengelola proses pemuatan data ke database PostgreSQL menggunakan metode COPY."""
@@ -234,25 +238,12 @@ class DataLoader:
             connection.close()
 
 
-def load_postgres_stage(engine: Engine | None = None) -> None:
-
-    """
-    Membaca file staging dan memuat data ke PostgreSQL layer Bronze.
-
-    Args:
-        
-        engine (Engine | None, optional): Objek SQLAlchemy Engine.
-            Jika None, fungsi akan membuat koneksi baru.
-
-    Raises:
-        
-        Exception: Jika terjadi kesalahan pada langkah koneksi atau pemuatan data.
-    """
-    logger.info("Starting load to PostgreSQL pipeline execution")
-
-    # 1. Inisialisasi koneksi database jika engine belum tersedia
+def load_postgres_stage(
+    engine: Engine | None = None, run_id: uuid.UUID | None = None
+) -> None:
+    """Membaca file staging dan memuat data ke PostgreSQL layer Bronze dengan Logging Audit."""
+    # 1. Inisialisasi koneksi jika belum ada
     if engine is None:
-        logger.info("Initializing database connection")
         try:
             db_connection = DatabaseConnection()
             engine = db_connection.get_engine()
@@ -260,40 +251,30 @@ def load_postgres_stage(engine: Engine | None = None) -> None:
             logger.exception("Failed to initialize database connection instance")
             raise
 
-        logger.info("Testing PostgreSQL database connection")
-        try:
-            with engine.connect() as conn:
-                conn.execute(text("SELECT 1"))
-            logger.info("Database connection established successfully")
-        except Exception:
-            logger.exception("Failed to establish PostgreSQL database connection")
-            raise
+    # 2. Inisialisasi Audit Logger
+    run_id = run_id or uuid.uuid4()
+    audit = AuditLogger(engine=engine, logger=logger)
 
-    # 2. Tentukan lokasi file staging
-    base_dir = Path(__file__).resolve().parent.parent
-    stag_zone_file = base_dir / "data_lake" / "staging" / "stag-zone-taxi.csv"
-    stag_trip_file = base_dir / "data_lake" / "staging" / "stag-trip-taxi.parquet"
+    audit_id = audit.log_start(
+        run_id=run_id,
+        stage="bronze_load",
+        object_name="bronze.raw_taxi_trips",
+    )
 
-    # 3. Load data taxi zone ke Bronze layer
     try:
-        logger.info("Loading taxi zone dataset into PostgreSQL")
+        # 3. Load data taxi zone ke Bronze layer
         DataLoader.load_csv(
-            csv_path=stag_zone_file,
+            csv_path=STAG_ZONE_TAXI,
             engine=engine,
             table="raw_taxi_zones",
             schema="bronze",
             delimiter=",",
             null_rep="",
         )
-    except Exception:
-        logger.exception("Failed during taxi zone dataset loading step")
-        raise
 
-    # 4. Load data taxi trip ke Bronze layer
-    try:
-        logger.info("Loading taxi trip dataset into PostgreSQL")
+        # 4. Load data taxi trip ke Bronze layer
         DataLoader.load_parquet(
-            parquet_path=stag_trip_file,
+            parquet_path=STAG_TRIP_TAXI,
             engine=engine,
             table="raw_taxi_trips",
             schema="bronze",
@@ -301,11 +282,25 @@ def load_postgres_stage(engine: Engine | None = None) -> None:
             decode_bytes=True,
             integer_cols=["vendor_id", "passenger_count", "ratecode_id", "payment_type"],
         )
-    except Exception:
-        logger.exception("Failed during taxi trip dataset loading step")
-        raise
 
-    logger.info("Staging data loaded successfully into Bronze layer")
+        # Hitung total baris yang berhasil di-load untuk audit
+        with engine.connect() as conn:
+            loaded_rows = (
+                conn.execute(text("SELECT COUNT(*) FROM bronze.raw_taxi_trips")).scalar()
+                or 0
+            )
+
+        # 5. Catat SUCCESS ke Audit
+        audit.log_success(
+            audit_id=audit_id,
+            rows_affected=loaded_rows,
+            message="Staging data loaded successfully into Bronze layer",
+        )
+
+    except Exception as e:
+        # 6. Catat FAILED jika terjadi kegagalan
+        audit.log_failure(audit_id=audit_id, error_message=str(e))
+        raise
 
 
 if __name__ == "__main__":

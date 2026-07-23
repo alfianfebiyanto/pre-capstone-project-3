@@ -2,111 +2,140 @@
 # +     Import Libarary      +
 # ============================
 
-from pathlib import Path
-from sqlalchemy import create_engine, text
+import uuid
+from sqlalchemy import text
 from sqlalchemy.engine import Engine
 from initial_database import DatabaseConnection, SchemaManager
 
+from utils_helper import (
+    SQL_02_BRONZE,
+    SQL_03_SILVER,
+    SQL_04_GOLD,
+    AuditLogger
+    )
 # Set-up logging 
 from utils_helper import setup_logger
 logger = setup_logger(__name__)
 
-# ===============================
-# +     Path Configuration      +
-# ===============================
+# ==========================================
+# +       TRANSFORM SILVER LAYER           +
+# ==========================================
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-SQL_02_PATH = BASE_DIR / "sql" / "02-bronze.sql"
-SQL_03_PATH = BASE_DIR / "sql" / "03-silver.sql"
-SQL_04_PATH = BASE_DIR / "sql" / "04-gold-mart.sql"
-
-def silver_transform(engine: Engine | None = None) -> None:
-
-    """
-    Mengeksekusi skrip transformasi SQL dari layer Bronze ke layer Silver.
-
-    Args:
-        
-        engine (Engine | None, optional): Objek SQLAlchemy Engine.
-            Jika None, fungsi akan membuat koneksi baru.
-
-    Raises:
-        
-        Exception: Jika terjadi kesalahan saat eksekusi file SQL transformasi Silver.
-    """
-
-    logger.info("Starting Silver layer transformation execution")
-
-    # 1. Inisialisasi koneksi database dan SchemaManager
+def silver_transform(
+    engine: Engine | None = None, run_id: uuid.UUID | None = None
+) -> None:
+    """Mengeksekusi transformasi SQL dari Bronze ke Silver layer dengan Audit Logging."""
     if engine is None:
         try:
-            db_conn = DatabaseConnection()
-            engine = db_conn.get_engine()
+            db_connection = DatabaseConnection()
+            engine = db_connection.get_engine()
         except Exception:
-            logger.exception("Failed to initialize database connection engine")
+            logger.exception("Failed to initialize database connection instance")
             raise
 
-    schema_manager = SchemaManager(db_engine=engine)
+    run_id = run_id or uuid.uuid4()
+    audit = AuditLogger(engine=engine, logger=logger)
 
-    # 2. Eksekusi skrip pra-pemrosesan jika tersedia
-    if SQL_02_PATH.exists():
-        try:
-            logger.info("Executing pre-transformation SQL script: %s", SQL_02_PATH)
-            schema_manager.execute_sql_file(SQL_02_PATH)
-        except Exception:
-            logger.exception("Failed executing pre-transformation SQL script")
-            raise
+    audit_id = audit.log_start(
+        run_id=run_id,
+        stage="silver_transform",
+        object_name="silver.taxi_trips_cleaned",
+    )
 
-    # 3. Eksekusi skrip transformasi Silver
     try:
-        logger.info("Executing Silver transformation SQL script: %s", SQL_03_PATH)
-        schema_manager.execute_sql_file(SQL_03_PATH)
-    except Exception:
-        logger.exception("Failed executing Silver transformation SQL script")
+        schema_manager = SchemaManager(db_engine=engine)
+
+        # Jalankan eksekusi 02-bronze.sql jika ada (health check/views)
+        if SQL_02_BRONZE.exists():
+            schema_manager.execute_sql_file(SQL_02_BRONZE)
+
+        # Jalankan eksekusi 03-silver.sql
+        schema_manager.execute_sql_file(SQL_03_SILVER)
+
+        # Hitung total baris yang berhasil di-clean di Silver Layer
+        with engine.connect() as conn:
+            cleaned_rows = (
+                conn.execute(
+                    text("SELECT COUNT(*) FROM silver.taxi_trips_cleaned")
+                ).scalar()
+                or 0
+            )
+
+        audit.log_success(
+            audit_id=audit_id,
+            rows_affected=cleaned_rows,
+            message="Silver layer transformed and cleaned successfully",
+        )
+
+    except Exception as e:
+        audit.log_failure(audit_id=audit_id, error_message=str(e))
         raise
 
-    logger.info("Silver layer transformation completed successfully")
 
+# ==========================================
+# +        TRANSFORM GOLD LAYER            +
+# ==========================================
 
-def goldmart_transform(engine: Engine | None = None) -> None:
-
-    """
-    Mengeksekusi skrip agregasi SQL dari layer Silver ke Gold Data Mart.
-
-    Args:
-
-        engine (Engine | None, optional): Objek SQLAlchemy Engine.
-            Jika None, fungsi akan membuat koneksi baru.
-
-    Raises:
-    
-        Exception: Jika terjadi kesalahan saat eksekusi file SQL transformasi Gold.
-    """
-
-    logger.info("Starting Gold Mart transformation execution")
-
-    # 1. Inisialisasi koneksi database dan SchemaManager
+def goldmart_transform(
+    engine: Engine | None = None, run_id: uuid.UUID | None = None
+) -> None:
+    """Mengeksekusi agregasi SQL dari Silver ke Gold Data Mart dengan Audit Logging."""
     if engine is None:
         try:
-            db_conn = DatabaseConnection()
-            engine = db_conn.get_engine()
+            db_connection = DatabaseConnection()
+            engine = db_connection.get_engine()
         except Exception:
-            logger.exception("Failed to initialize database connection engine")
+            logger.exception("Failed to initialize database connection instance")
             raise
 
-    schema_manager = SchemaManager(db_engine=engine)
+    run_id = run_id or uuid.uuid4()
+    audit = AuditLogger(engine=engine, logger=logger)
 
-    # 2. Eksekusi skrip agregasi Gold Mart
+    audit_id = audit.log_start(
+        run_id=run_id,
+        stage="gold_build",
+        object_name="gold.daily_trip_summary",
+    )
+
     try:
-        logger.info("Executing Gold Mart aggregation SQL script: %s", SQL_04_PATH)
-        schema_manager.execute_sql_file(SQL_04_PATH)
-    except Exception:
-        logger.exception("Failed executing Gold Mart aggregation SQL script")
-        raise
+        schema_manager = SchemaManager(db_engine=engine)
 
-    logger.info("Gold Mart transformation completed successfully")
+        # Jalankan eksekusi 04-gold-mart.sql
+        schema_manager.execute_sql_file(SQL_04_GOLD)
+
+        # Hitung akumulasi baris di seluruh tabel Gold
+        tables = [
+            "daily_trip_summary",
+            "hourly_demand_summary",
+            "zone_performance_summary",
+            "payment_behavior_summary",
+            "route_performance_summary",
+        ]
+        total_gold_rows = 0
+
+        with engine.connect() as conn:
+            for tbl in tables:
+                total_gold_rows += (
+                    conn.execute(text(f"SELECT COUNT(*) FROM gold.{tbl}")).scalar()
+                    or 0
+                )
+
+        audit.log_success(
+            audit_id=audit_id,
+            rows_affected=total_gold_rows,
+            message="Gold layer datamarts built successfully",
+        )
+
+    except Exception as e:
+        audit.log_failure(audit_id=audit_id, error_message=str(e))
+        raise
 
 
 if __name__ == "__main__":
-    silver_transform()
-    goldmart_transform()
+
+    # Generate 1 run_id bersama untuk eksekusi mandiri lokal
+    shared_run_id = uuid.uuid4()
+    logger.info("Starting local standalone execution (Run ID: %s)", shared_run_id)
+
+    silver_transform(run_id=shared_run_id)
+    goldmart_transform(run_id=shared_run_id)

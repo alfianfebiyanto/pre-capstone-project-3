@@ -4,8 +4,8 @@
 
 import os
 from pathlib import Path
-
 from dotenv import load_dotenv
+from utils_helper import SQL_01_SCHEMA
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
@@ -13,6 +13,10 @@ from sqlalchemy.engine import Engine
 from utils_helper import setup_logger
 logger = setup_logger(__name__)
 
+
+# ===============================
+# +      Helper Functions       +
+# ===============================
 class DatabaseConnection:
 
     """Mengelola konfigurasi dan koneksi ke database PostgreSQL."""
@@ -122,10 +126,6 @@ class SchemaManager:
             raise
 
 
-# ================================
-# +     initial_db Pipeline      +
-# ================================
-
 def initial_stage() -> None:
 
     """Memeriksa koneksi database dan mengeksekusi script schema DDL dasar.
@@ -158,11 +158,8 @@ def initial_stage() -> None:
     # 3. Eksekusi script schema database
     logger.info("Executing database schema script")
     try:
-        base_dir = Path(__file__).resolve().parent.parent
-        sql_01_path = base_dir / "sql" / "01-schema.sql"
-
         schema_manager = SchemaManager(db_engine=engine)
-        schema_manager.execute_sql_file(sql_01_path)
+        schema_manager.execute_sql_file(SQL_01_SCHEMA)
     except Exception:
         logger.exception("Failed during database schema execution step")
         raise

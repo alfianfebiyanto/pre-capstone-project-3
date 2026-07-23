@@ -3,27 +3,27 @@
 # ============================
 
 import re
+import requests
+import pandas as pd
 from pathlib import Path
 
-import pandas as pd
-import requests
+from utils_helper import (
+    RAW_PATH,
+    RAW_TRIPS_TAXI,
+    RAW_ZONE_TAXI,
+    STAG_PATH,
+    TAXI_TRIPS_URL,
+    ZONE_TAXI_URL,
+    setup_logger
+)
 
 # Set-up logging 
-from utils_helper import setup_logger
 logger = setup_logger(__name__)
 
-# ===============================
-# +     Path Configuration      +
-# ===============================
-TAXI_TRIPS_URL = "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2026-01.parquet"
-ZONE_TAXI_URL = "https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv"
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-RAW_PATH = BASE_DIR / "data_lake" / "raw"
-STAG_PATH = BASE_DIR / "data_lake" / "staging"
-
-RAW_ZONE_TAXI = RAW_PATH / "taxi-zone.csv"
-RAW_TRIPS_TAXI = RAW_PATH / "taxi-trips.parquet"
+# ===============================
+# +      Helper Functions       +
+# ===============================
 
 def download(url: str, output_dir: Path, file_name: str) -> Path:
 

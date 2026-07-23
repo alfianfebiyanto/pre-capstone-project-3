@@ -1,12 +1,13 @@
--- ====================================================
--- +       PROCESESS TRANSFORM BRONZE TO SILVER       +
--- ====================================================
+-- =========================
+-- +     SILVER LAYER      +
+-- =========================
 
+-- 1. Truncate Tabel Silver
 TRUNCATE TABLE silver.taxi_zones CASCADE;
 TRUNCATE TABLE silver.taxi_trips_cleaned;
 TRUNCATE TABLE silver.data_quality_issues;
 
--- transform Bronze.raw_taxi_zones to Silver.Taxi Zones
+-- 2. Transformasi & Upsert Data Taxi Zones (Bronze -> Silver)
 INSERT INTO silver.taxi_zones (
     location_id,
     borough,
@@ -28,7 +29,7 @@ ON CONFLICT (location_id) DO UPDATE SET
     updated_at = CURRENT_TIMESTAMP;
 
 
--- Insert data valid ke silver.taxi_trips_cleaned
+-- 3. Transformasi & Ingestion Data Valid ke silver.taxi_trips_cleaned
 INSERT INTO silver.taxi_trips_cleaned (
     vendor_id,
     pickup_datetime,
@@ -59,7 +60,7 @@ INSERT INTO silver.taxi_trips_cleaned (
     updated_at
 )
 SELECT
-    -- Kolom asli
+    -- Kolom Utama
     vendor_id,
     tpep_pickup_datetime,
     tpep_dropoff_datetime,
@@ -70,7 +71,8 @@ SELECT
     pu_location_id,
     do_location_id,
     payment_type,
-    -- Mapping payment type
+
+    -- Mapping Payment Type Label
     CASE payment_type
         WHEN 1 THEN 'Credit Card'
         WHEN 2 THEN 'Cash'
@@ -80,6 +82,7 @@ SELECT
         WHEN 6 THEN 'Voided Trip'
         ELSE 'Other'
     END AS payment_type_label,
+
     fare_amount,
     extra,
     mta_tax,
@@ -89,7 +92,8 @@ SELECT
     total_amount,
     congestion_surcharge,
     airport_fee,
-    -- Kolom turunan dari pickup_datetime
+
+    -- Kolom Turunan Dimensi Waktu & Durasi
     DATE(tpep_pickup_datetime) AS pickup_date,
     EXTRACT(HOUR FROM tpep_pickup_datetime)::INT AS pickup_hour,
     TO_CHAR(tpep_pickup_datetime, 'Day') AS pickup_day_name,
@@ -107,7 +111,7 @@ SELECT
     CURRENT_TIMESTAMP AS updated_at
 FROM bronze.raw_taxi_trips
 WHERE
-    -- Filter data valid (business rules)
+    -- Aturan Bisnis & Validasi Data Valid
     passenger_count > 0
     AND trip_distance >= 0
     AND fare_amount >= 0
@@ -120,7 +124,7 @@ WHERE
     AND DATE(tpep_pickup_datetime) BETWEEN '2026-01-01' AND '2026-01-31';
 
 
--- Insert data yang tidak valid ke silver.data_quality_issues
+-- 4. Ingestion Data Anomali Records ke silver.data_quality_issues
 INSERT INTO silver.data_quality_issues (
     issue_type,
     severity,
@@ -129,6 +133,7 @@ INSERT INTO silver.data_quality_issues (
     updated_at
 )
 SELECT
+    -- Klasifikasi Tipe Anomali
     CASE
         WHEN passenger_count <= 0 THEN 'Invalid Passenger Count'
         WHEN trip_distance < 0 THEN 'Negative Trip Distance'
@@ -139,11 +144,14 @@ SELECT
         WHEN DATE(tpep_pickup_datetime) NOT BETWEEN '2026-01-01' AND '2026-01-31' THEN 'Outside Date Range'
         ELSE 'Other'
     END AS issue_type,
+
+    -- Penentuan Tingkat Keparahan (Severity)
     CASE
         WHEN passenger_count <= 0 OR total_amount < 0 THEN 'HIGH'
         WHEN trip_distance < 0 OR fare_amount < 0 THEN 'MEDIUM'
         ELSE 'LOW'
     END AS severity,
+    
     'Row violates business rules' AS description,
     to_jsonb(bronze.raw_taxi_trips.*) AS raw_data,
     CURRENT_TIMESTAMP AS updated_at

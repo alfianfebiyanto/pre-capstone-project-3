@@ -1,4 +1,6 @@
-
+-- =========================
+-- +     INITIALIZATION    +
+-- =========================
 
 CREATE SCHEMA IF NOT EXISTS bronze;
 CREATE SCHEMA IF NOT EXISTS silver;
@@ -6,7 +8,11 @@ CREATE SCHEMA IF NOT EXISTS gold;
 CREATE SCHEMA IF NOT EXISTS audit;
 
 
+-- =========================
+-- +      BRONZE LAYER     +
+-- =========================
 
+-- 1. Tabel raw_taxi_zones
 CREATE TABLE IF NOT EXISTS bronze.raw_taxi_zones(
     "location_id" INT PRIMARY KEY,
     "borough" VARCHAR(255),
@@ -16,7 +22,6 @@ CREATE TABLE IF NOT EXISTS bronze.raw_taxi_zones(
 );
 
 -- 2. Tabel raw_taxi_trips
-
 CREATE TABLE IF NOT EXISTS bronze.raw_taxi_trips (
     vendor_id INTEGER,
     tpep_pickup_datetime TIMESTAMP,
@@ -45,6 +50,7 @@ CREATE TABLE IF NOT EXISTS bronze.raw_taxi_trips (
 -- +      AUDIT LAYER      +
 -- =========================
 
+-- 1. Tabel audit
 CREATE TABLE IF NOT EXISTS audit.load_audit (
     audit_id        BIGSERIAL PRIMARY KEY,
     run_id          UUID        NOT NULL,
@@ -125,7 +131,6 @@ CREATE TABLE silver.data_quality_issues (
     raw_data       JSONB,
     updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
 
 
 -- ==========================

@@ -1,41 +1,34 @@
 # ============================
-# +     Import Libarary      +
+# +      Import Library      +
 # ============================
-from pathlib import Path
 
+import uuid
 from initial_database import DatabaseConnection
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
+from utils_helper import AuditLogger, setup_logger
 
-# Set-up logging 
-from utils_helper import setup_logger
+# Set-up Logging
 logger = setup_logger(__name__)
 
+
 # ===============================
-# +     Path Configuration      +
+# +      Helper Functions       +
 # ===============================
-BASE_DIR = Path(__file__).resolve().parent.parent
 
-
-def validate_bronze_layer(engine: Engine | None = None) -> None:
-
-    """
-    Memastikan kualitas dan integritas data pada layer Bronze.
+def validate_bronze_layer(
+    engine: Engine | None = None, run_id: uuid.UUID | None = None
+) -> None:
+    """Memastikan kualitas dan integritas data pada layer Bronze.
 
     Args:
-        
         engine (Engine | None, optional): Objek SQLAlchemy Engine.
-            Jika None, fungsi akan membuat koneksi baru.
+        run_id (uuid.UUID | None, optional): Unique ID untuk pelacakan audit run.
 
     Raises:
-
         ValueError: Jika tabel Bronze kosong atau mengandung timestamp NULL.
         Exception: Jika terjadi kesalahan pada eksekusi query database.
     """
-
-    logger.info("Starting Bronze layer validation")
-
-    # 1. Inisialisasi koneksi database jika belum diberikan
     if engine is None:
         try:
             engine = DatabaseConnection().get_engine()
@@ -43,38 +36,51 @@ def validate_bronze_layer(engine: Engine | None = None) -> None:
             logger.exception("Failed to initialize database connection engine")
             raise
 
-    # 2. Periksa jumlah data pada tabel Bronze
-    try:
-        with engine.connect() as conn:
-            trips_count = conn.execute(
-                text("SELECT COUNT(*) FROM bronze.raw_taxi_trips")
-            ).scalar()
+    run_id = run_id or uuid.uuid4()
+    audit = AuditLogger(engine=engine, logger=logger)
 
-            zones_count = conn.execute(
-                text("SELECT COUNT(*) FROM bronze.raw_taxi_zones")
-            ).scalar()
+    audit_id = audit.log_start(
+        run_id=run_id,
+        stage="bronze_validation",
+        object_name="bronze.raw_taxi_trips",
+    )
+
+    try:
+        # 1. Periksa jumlah data pada tabel Bronze
+        with engine.connect() as conn:
+            trips_count = (
+                conn.execute(
+                    text("SELECT COUNT(*) FROM bronze.raw_taxi_trips")
+                ).scalar()
+                or 0
+            )
+
+            zones_count = (
+                conn.execute(
+                    text("SELECT COUNT(*) FROM bronze.raw_taxi_zones")
+                ).scalar()
+                or 0
+            )
 
         logger.info("Bronze trips count: %s rows", f"{trips_count:,}")
         logger.info("Bronze zones count: %s rows", f"{zones_count:,}")
 
         if trips_count == 0 or zones_count == 0:
             raise ValueError("Bronze layer validation failed: Empty table detected.")
-        
-    except Exception:
-        logger.exception("Failed during Bronze layer row count check")
-        raise
 
-    # 3. Periksa nilai NULL pada kolom tanggal utama
-    try:
+        # 2. Periksa nilai NULL pada kolom tanggal utama
         with engine.connect() as conn:
-            null_dates = conn.execute(
-                text("""
-                SELECT COUNT(*)
-                FROM bronze.raw_taxi_trips
-                WHERE tpep_pickup_datetime IS NULL
-                OR tpep_dropoff_datetime IS NULL
-            """)
-            ).scalar()
+            null_dates = (
+                conn.execute(
+                    text("""
+                    SELECT COUNT(*)
+                    FROM bronze.raw_taxi_trips
+                    WHERE tpep_pickup_datetime IS NULL
+                    OR tpep_dropoff_datetime IS NULL
+                """)
+                ).scalar()
+                or 0
+            )
 
         logger.info("Missing pickup/dropoff timestamp count: %s rows", f"{null_dates:,}")
 
@@ -82,32 +88,31 @@ def validate_bronze_layer(engine: Engine | None = None) -> None:
             raise ValueError(
                 f"Bronze layer validation failed: {null_dates:,} rows contain NULL timestamps."
             )
-    except Exception:
-        logger.exception("Failed during Bronze layer null timestamp check")
+
+        audit.log_success(
+            audit_id=audit_id,
+            rows_affected=trips_count,
+            message="Bronze layer validation passed successfully",
+        )
+
+    except Exception as e:
+        audit.log_failure(audit_id=audit_id, error_message=str(e))
         raise
 
-    logger.info("Bronze layer validation completed successfully")
 
-
-def validate_silver_layer(engine: Engine | None = None) -> None:
-
-    """
-    Memastikan kualitas dan integritas data pada layer Silver.
+def validate_silver_layer(
+    engine: Engine | None = None, run_id: uuid.UUID | None = None
+) -> None:
+    """Memastikan kualitas dan integritas data pada layer Silver.
 
     Args:
-
         engine (Engine | None, optional): Objek SQLAlchemy Engine.
-            Jika None, fungsi akan membuat koneksi baru.
+        run_id (uuid.UUID | None, optional): Unique ID untuk pelacakan audit run.
 
     Raises:
-
         ValueError: Jika tabel Silver kosong, mengandung nilai negatif, atau ada duplikasi ID.
         Exception: Jika terjadi kesalahan pada eksekusi query database.
     """
-
-    logger.info("Starting Silver layer validation")
-
-    # 1. Inisialisasi koneksi database jika belum diberikan
     if engine is None:
         try:
             engine = DatabaseConnection().get_engine()
@@ -115,36 +120,53 @@ def validate_silver_layer(engine: Engine | None = None) -> None:
             logger.exception("Failed to initialize database connection engine")
             raise
 
-    # 2. Periksa jumlah data pada tabel Silver
-    try:
-        with engine.connect() as conn:
-            trips_count = conn.execute(
-                text("SELECT COUNT(*) FROM silver.taxi_trips_cleaned")
-            ).scalar()
+    run_id = run_id or uuid.uuid4()
+    audit = AuditLogger(engine=engine, logger=logger)
 
-            zones_count = conn.execute(
-                text("SELECT COUNT(*) FROM silver.taxi_zones")
-            ).scalar()
+    audit_id = audit.log_start(
+        run_id=run_id,
+        stage="silver_validation",
+        object_name="silver.taxi_trips_cleaned",
+    )
+
+    try:
+        # 1. Periksa jumlah data pada tabel Silver
+        with engine.connect() as conn:
+            trips_count = (
+                conn.execute(
+                    text("SELECT COUNT(*) FROM silver.taxi_trips_cleaned")
+                ).scalar()
+                or 0
+            )
+
+            zones_count = (
+                conn.execute(
+                    text("SELECT COUNT(*) FROM silver.taxi_zones")
+                ).scalar()
+                or 0
+            )
 
         logger.info("Silver trips count: %s rows", f"{trips_count:,}")
         logger.info("Silver zones count: %s rows", f"{zones_count:,}")
 
         if trips_count == 0 or zones_count == 0:
             raise ValueError("Silver layer validation failed: Empty table detected.")
-    except Exception:
-        logger.exception("Failed during Silver layer row count check")
-        raise
 
-    # 3. Periksa hasil cleansing terhadap nilai negatif
-    try:
+        # 2. Periksa hasil cleansing terhadap nilai negatif
         with engine.connect() as conn:
-            negative_amount = conn.execute(
-                text("SELECT COUNT(*) FROM silver.taxi_trips_cleaned WHERE total_amount < 0")
-            ).scalar()
+            negative_amount = (
+                conn.execute(
+                    text("SELECT COUNT(*) FROM silver.taxi_trips_cleaned WHERE total_amount < 0")
+                ).scalar()
+                or 0
+            )
 
-            negative_distance = conn.execute(
-                text("SELECT COUNT(*) FROM silver.taxi_trips_cleaned WHERE trip_distance < 0")
-            ).scalar()
+            negative_distance = (
+                conn.execute(
+                    text("SELECT COUNT(*) FROM silver.taxi_trips_cleaned WHERE trip_distance < 0")
+                ).scalar()
+                or 0
+            )
 
         logger.info("Negative total amount records: %s", f"{negative_amount:,}")
         logger.info("Negative trip distance records: %s", f"{negative_distance:,}")
@@ -153,12 +175,8 @@ def validate_silver_layer(engine: Engine | None = None) -> None:
             raise ValueError(
                 "Silver layer validation failed: Invalid negative values detected."
             )
-    except Exception:
-        logger.exception("Failed during Silver layer negative value check")
-        raise
 
-    # 4. Periksa duplikasi location_id pada tabel taxi_zones
-    try:
+        # 3. Periksa duplikasi location_id pada tabel taxi_zones
         with engine.connect() as conn:
             duplicate_zones = conn.execute(
                 text("""
@@ -173,30 +191,31 @@ def validate_silver_layer(engine: Engine | None = None) -> None:
             raise ValueError(
                 f"Silver layer validation failed: Found {len(duplicate_zones)} duplicate location_id records."
             )
-    except Exception:
-        logger.exception("Failed during Silver layer duplicate location_id check")
+
+        audit.log_success(
+            audit_id=audit_id,
+            rows_affected=trips_count,
+            message="Silver layer validation passed successfully",
+        )
+
+    except Exception as e:
+        audit.log_failure(audit_id=audit_id, error_message=str(e))
         raise
 
-    logger.info("Silver layer validation completed successfully")
 
-def validate_goldmart_layer(engine: Engine | None = None) -> None:
-    """
-    Memastikan kualitas dan integritas data pada layer Gold.
+def validate_goldmart_layer(
+    engine: Engine | None = None, run_id: uuid.UUID | None = None
+) -> None:
+    """Memastikan kualitas dan integritas data pada layer Gold.
 
     Args:
-
         engine (Engine | None, optional): Objek SQLAlchemy Engine.
-            Jika None, fungsi akan membuat koneksi baru.
+        run_id (uuid.UUID | None, optional): Unique ID untuk pelacakan audit run.
 
     Raises:
-
         ValueError: Jika tabel Gold kosong, melanggar aturan bisnis, atau mengandung duplikasi PK.
         Exception: Jika terjadi kesalahan pada eksekusi query database.
     """
-
-    logger.info("Starting Gold layer validation")
-
-    # 1. Inisialisasi koneksi database jika belum diberikan
     if engine is None:
         try:
             engine = DatabaseConnection().get_engine()
@@ -204,8 +223,17 @@ def validate_goldmart_layer(engine: Engine | None = None) -> None:
             logger.exception("Failed to initialize database connection engine")
             raise
 
-    # 2. Periksa jumlah data pada seluruh tabel Gold
+    run_id = run_id or uuid.uuid4()
+    audit = AuditLogger(engine=engine, logger=logger)
+
+    audit_id = audit.log_start(
+        run_id=run_id,
+        stage="gold_validation",
+        object_name="gold.daily_trip_summary",
+    )
+
     try:
+        # 1. Periksa jumlah data pada seluruh tabel Gold
         gold_counts = {}
         tables = [
             "daily_trip_summary",
@@ -219,7 +247,9 @@ def validate_goldmart_layer(engine: Engine | None = None) -> None:
             for table_name in tables:
                 gold_counts[table_name] = conn.execute(
                     text(f"SELECT COUNT(*) FROM gold.{table_name}")
-                ).scalar()
+                ).scalar() or 0
+
+        total_gold_rows = sum(gold_counts.values())
 
         for table_name, count in gold_counts.items():
             logger.info("Gold %s count: %s rows", table_name, f"{count:,}")
@@ -228,45 +258,43 @@ def validate_goldmart_layer(engine: Engine | None = None) -> None:
                 raise ValueError(
                     f"Gold layer validation failed: Empty table gold.{table_name}."
                 )
-    except Exception:
-        logger.exception("Failed during Gold layer row count check")
-        raise
 
-    # 3. Validasi aturan bisnis (business rules)
-    try:
+        # 2. Validasi aturan bisnis (business rules)
         with engine.connect() as conn:
-            invalid_pct = conn.execute(
-                text("""
-                SELECT COUNT(*)
-                FROM gold.payment_behavior_summary
-                WHERE percentage_of_total < 0
-                OR percentage_of_total > 100
-            """)
-            ).scalar()
+            invalid_pct = (
+                conn.execute(
+                    text("""
+                    SELECT COUNT(*)
+                    FROM gold.payment_behavior_summary
+                    WHERE percentage_of_total < 0
+                    OR percentage_of_total > 100
+                """)
+                ).scalar()
+                or 0
+            )
 
             if invalid_pct > 0:
                 raise ValueError(
                     "Gold layer validation failed: Invalid percentage value detected."
                 )
 
-            invalid_routes = conn.execute(
-                text("""
-                SELECT COUNT(*)
-                FROM gold.route_performance_summary
-                WHERE trip_count < 10
-            """)
-            ).scalar()
+            invalid_routes = (
+                conn.execute(
+                    text("""
+                    SELECT COUNT(*)
+                    FROM gold.route_performance_summary
+                    WHERE trip_count < 10
+                """)
+                ).scalar()
+                or 0
+            )
 
             if invalid_routes > 0:
                 raise ValueError(
                     f"Gold layer validation failed: {invalid_routes} routes have trip_count below minimum threshold."
                 )
-    except Exception:
-        logger.exception("Failed during Gold layer business rules validation step")
-        raise
 
-    # 4. Periksa duplikasi Primary Key pada tabel Gold
-    try:
+        # 3. Periksa duplikasi Primary Key pada tabel Gold
         with engine.connect() as conn:
             duplicate_daily = conn.execute(
                 text("""
@@ -295,13 +323,21 @@ def validate_goldmart_layer(engine: Engine | None = None) -> None:
                 raise ValueError(
                     "Gold layer validation failed: Duplicate hour_slot detected in hourly_demand_summary."
                 )
-    except Exception:
-        logger.exception("Failed during Gold layer primary key uniqueness check")
+
+        audit.log_success(
+            audit_id=audit_id,
+            rows_affected=total_gold_rows,
+            message="Gold layer validation passed successfully",
+        )
+
+    except Exception as e:
+        audit.log_failure(audit_id=audit_id, error_message=str(e))
         raise
 
-    logger.info("Gold layer validation completed successfully")
 
 if __name__ == "__main__":
-    validate_bronze_layer()
-    validate_silver_layer()
-    validate_goldmart_layer()
+    # Apabila dijalankan langsung, buat 1 run_id bersama untuk ketiga langkah validasi
+    shared_run_id = uuid.uuid4()
+    validate_bronze_layer(run_id=shared_run_id)
+    validate_silver_layer(run_id=shared_run_id)
+    validate_goldmart_layer(run_id=shared_run_id)

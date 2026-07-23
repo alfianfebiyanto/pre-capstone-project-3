@@ -1,10 +1,15 @@
+-- =========================
+-- +       GOLD LAYER      +
+-- =========================
+
+-- 1. Truncate Seluruh Tabel Gold Data Mart
 TRUNCATE TABLE gold.daily_trip_summary CASCADE;
 TRUNCATE TABLE gold.hourly_demand_summary CASCADE;
 TRUNCATE TABLE gold.zone_performance_summary CASCADE;
 TRUNCATE TABLE gold.payment_behavior_summary CASCADE;
 TRUNCATE TABLE gold.route_performance_summary CASCADE;
 
--- 1.  Create Tabel Daily Trip Summary
+-- 2. Aggregation: Daily Trip Summary
 INSERT INTO gold.daily_trip_summary (
     summary_date,
     total_trips,
@@ -39,7 +44,7 @@ ON CONFLICT (summary_date) DO UPDATE SET
     updated_at = CURRENT_TIMESTAMP;
 
 
--- 2.  Create Tabel Hourly Demand Summary
+-- 3. Aggregation: Hourly Demand Summary
 INSERT INTO gold.hourly_demand_summary (
     hour_slot,
     avg_trips,
@@ -70,7 +75,7 @@ ON CONFLICT (hour_slot) DO UPDATE SET
     updated_at = CURRENT_TIMESTAMP;
 
 
--- 3.  Create Tabel Zone Perfomance Summary
+-- 4. Aggregation: Zone Performance Summary
 INSERT INTO gold.zone_performance_summary (
     location_id,
     borough,
@@ -109,7 +114,7 @@ WITH total_trips_all AS (
 )
 
 
--- 4.  Create Tabel paymeny Behavior Summary
+-- 5. Aggregation: Payment Behavior Summary
 INSERT INTO gold.payment_behavior_summary (
     payment_type_label,
     total_trips,
@@ -134,7 +139,7 @@ ON CONFLICT (payment_type_label) DO UPDATE SET
     percentage_of_total = EXCLUDED.percentage_of_total,
     updated_at = CURRENT_TIMESTAMP;
 
--- 5.  Create Tabel Route Perfomance Summary
+-- 6. Aggregation: Route Performance Summary
 INSERT INTO gold.route_performance_summary (
     pickup_zone_id,
     dropoff_zone_id,

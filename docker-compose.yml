@@ -3,6 +3,7 @@ version: '3.8'
 # Konfigurasi umum untuk service Airflow
 x-airflow-common: &airflow-common
   image: apache/airflow:2.9.1          
+  
   environment: &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     # Metadata database (Airflow)
@@ -27,6 +28,7 @@ x-airflow-common: &airflow-common
 
     # Path Data Lake di dalam container
     DATA_LAKE_BASE_PATH: /opt/airflow/data_lake
+
   volumes:
     - ./dags:/opt/airflow/dags
     - ./include:/opt/airflow/include
@@ -34,8 +36,8 @@ x-airflow-common: &airflow-common
     - ./plugins:/opt/airflow/plugins
     - ./config:/opt/airflow/config
     - ./data_lake:/opt/airflow/data_lake
-    - ./scripts:/opt/airflow/scripts   # <-- tambahin ini saran claude
-    - ./sql:/opt/airflow/sql   # <-- tambahin ini saran claude
+    - ./scripts:/opt/airflow/scripts    # <-- mount folder scripts
+    - ./sql:/opt/airflow/sql    # <-- mount folder scripts
   
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
