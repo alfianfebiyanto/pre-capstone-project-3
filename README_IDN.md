@@ -2,10 +2,8 @@
 
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![SQL](https://img.shields.io/badge/SQL-Advanced-E38C00?style=for-the-badge&logo=sqlite&logoColor=white)](https://en.wikipedia.org/wiki/SQL)
 [![Apache Airflow](https://img.shields.io/badge/Apache%20Airflow-2.9.1-017CEE?style=for-the-badge&logo=Apache%20Airflow&logoColor=white)](https://airflow.apache.org/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
-        
 
 Pipeline data lokal end-to-end untuk mengolah dataset **NYC Taxi** menggunakan **Apache Airflow**, **PostgreSQL**, **Python**, dan **Docker Compose**, dengan pendekatan **Medallion Architecture (Bronze → Silver → Gold)** yang dilengkapi **Data Quality Check**, **Business Analytics Logging**, dan **Audit Trail Logging** di setiap tahap.
 
