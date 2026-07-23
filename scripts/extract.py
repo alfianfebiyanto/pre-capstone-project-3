@@ -1,7 +1,6 @@
 # ============================
 # +     Import Libarary      +
 # ============================
-
 import re
 import requests
 import pandas as pd
@@ -9,11 +8,13 @@ from pathlib import Path
 
 from utils_helper import (
     RAW_PATH,
-    RAW_TRIPS_TAXI,
-    RAW_ZONE_TAXI,
     STAG_PATH,
+    RAW_TAXI_ZONES,
+    RAW_TAXI_TRIPS,
+    STAG_TAXI_ZONES,
+    STAG_TAXI_TRIPS,
     TAXI_TRIPS_URL,
-    ZONE_TAXI_URL,
+    TAXI_ZONES_URL,
     setup_logger
 )
 
@@ -24,24 +25,19 @@ logger = setup_logger(__name__)
 # ===============================
 # +      Helper Functions       +
 # ===============================
-
 def download(url: str, output_dir: Path, file_name: str) -> Path:
-
     """
     Mengunduh file dari URL ke direktori tujuan dan memvalidasi ukuran file.
 
     Args:
-
         url (str): URL sumber file yang akan diunduh.
         output_dir (Path): Direktori tujuan penyimpanan file.
         file_name (str): Nama file yang akan disimpan.
 
     Returns:
-
         Path: Path lengkap menuju file yang berhasil diunduh.
 
     Raises:
-
         ValueError: Jika file hasil unduhan berukuran 0 byte.
         requests.RequestException: Jika terjadi kesalahan pada koneksi HTTP.
     """
@@ -79,19 +75,15 @@ def download(url: str, output_dir: Path, file_name: str) -> Path:
 
 
 def clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
-
     """
     Mengubah nama kolom DataFrame menjadi format snake_case yang konsisten.
 
     Args:
-
         df (pd.DataFrame): DataFrame yang akan dibersihkan nama kolomnya.
 
     Returns:
-
         pd.DataFrame: DataFrame dengan nama kolom berformat snake_case.
     """
-
     new_cols = []
     for col in df.columns:
         # 1. Tangani akhiran 'ID' agar berubah jadi '_id' bukan '_i_d'
@@ -112,21 +104,17 @@ def clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def save_data(df: pd.DataFrame, folder_path: Path, file_name: str) -> None:
-
     """
     Menyimpan DataFrame ke dalam format CSV atau Parquet.
 
     Args:
-
         df (pd.DataFrame): DataFrame yang akan disimpan.
         folder_path (Path): Direktori tujuan penyimpanan.
         file_name (str): Nama file tujuan (harus berakhiran .csv atau .parquet).
 
     Raises:
-    
         ValueError: Jika ekstensi nama file bukan .csv atau .parquet.
     """
-
     # 1. Buat folder tujuan jika belum ada
     folder_path.mkdir(parents=True, exist_ok=True)
     destination = folder_path / file_name
@@ -148,17 +136,13 @@ def save_data(df: pd.DataFrame, folder_path: Path, file_name: str) -> None:
 
 
 def exctraction_stage() -> None:
-
     """
     Menjalankan seluruh alur ekstraksi, pembersihan, dan penyiapan staging area.
-
     Fungsi ini dirancang bersifat idempotent sehingga aman dijalankan berulang kali.
 
     Raises:
-
         Exception: Jika terjadi kesalahan pada salah satu tahap ekstraksi.
     """
-
     logger.info("Starting extraction pipeline execution")
 
     # 1. Pastikan folder tujuan RAW_PATH dan STAG_PATH sudah dibuat
@@ -172,8 +156,8 @@ def exctraction_stage() -> None:
     # 2. Unduh dataset mentah
     try:
         logger.info("Downloading raw datasets")
-        download(url=ZONE_TAXI_URL, output_dir=RAW_PATH, file_name="taxi-zone.csv")
-        download(url=TAXI_TRIPS_URL, output_dir=RAW_PATH, file_name="taxi-trips.parquet")
+        download(url=TAXI_ZONES_URL, output_dir=RAW_PATH, file_name=RAW_TAXI_ZONES.name)
+        download(url=TAXI_TRIPS_URL, output_dir=RAW_PATH, file_name=RAW_TAXI_TRIPS.name)
     except Exception:
         logger.exception("Failed during raw datasets download step")
         raise
@@ -181,7 +165,7 @@ def exctraction_stage() -> None:
     # 3. Proses dataset taxi zones
     try:
         logger.info("Processing taxi zone dataset")
-        df_zone = pd.read_csv(RAW_ZONE_TAXI)
+        df_zone = pd.read_csv(RAW_TAXI_ZONES)
         df_zone_clean = clean_column_names(df_zone)
 
         # Handling NULL values pada Lookup Zone
@@ -192,7 +176,7 @@ def exctraction_stage() -> None:
 
         # Simpan Zone ke area staging
         logger.info("Saving processed taxi zone dataset to staging")
-        save_data(df_zone_clean, STAG_PATH, "stag-zone-taxi.csv")
+        save_data(df_zone_clean, STAG_PATH, STAG_TAXI_ZONES.name)
 
         # Membebaskan memori yang tidak lagi digunakan
         del df_zone, df_zone_clean
@@ -204,12 +188,12 @@ def exctraction_stage() -> None:
     # 4. Proses dataset taxi trips
     try:
         logger.info("Processing taxi trip dataset")
-        df_trips = pd.read_parquet(RAW_TRIPS_TAXI)
+        df_trips = pd.read_parquet(RAW_TAXI_TRIPS)
         df_trips_clean = clean_column_names(df_trips)
 
         # Simpan Trips ke area staging
         logger.info("Saving processed taxi trip dataset to staging")
-        save_data(df_trips_clean, STAG_PATH, "stag-trip-taxi.parquet")
+        save_data(df_trips_clean, STAG_PATH, STAG_TAXI_TRIPS.name)
 
         # Membebaskan memori yang tidak lagi digunakan
         del df_trips, df_trips_clean

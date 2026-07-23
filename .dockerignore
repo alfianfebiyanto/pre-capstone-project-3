@@ -1,0 +1,11 @@
+.env
+.git
+.gitignore
+logs/
+data_lake/raw/*.csv
+data_lake/raw/*.parquet
+data_lake/staging/*.csv
+data_lake/staging/*.parquet
+__pycache__/
+*.pyc
+README.md

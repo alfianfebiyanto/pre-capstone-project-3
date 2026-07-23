@@ -1,7 +1,6 @@
 # ============================
 # +     Import Libarary      +
 # ============================
-
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -18,18 +17,13 @@ logger = setup_logger(__name__)
 # +      Helper Functions       +
 # ===============================
 class DatabaseConnection:
-
     """Mengelola konfigurasi dan koneksi ke database PostgreSQL."""
-
     def __init__(self, env_path: Path | None = None) -> None:
-
         """Menginisialisasi konfigurasi database dari file lingkungan (.env).
-
         Args:
             env_path (Path | None, optional): Path menuju file .env.
                 Jika None, default mengambil dari root project.
         """
-
         # 1. Muat file .env
         if env_path is None:
             env_path = Path(__file__).resolve().parent.parent / ".env"
@@ -49,28 +43,22 @@ class DatabaseConnection:
         )
 
     def get_engine(self) -> Engine:
-
         """Membuat dan mengembalikan SQLAlchemy Database Engine.
 
         Returns:
             Engine: Objek SQLAlchemy Engine yang siap digunakan.
         """
-
         # 1. Kembalikan database engine
         return create_engine(self.url)
 
 
 class SchemaManager:
-
     """Mengelola pembacaan dan eksekusi file SQL ke database."""
-
     def __init__(self, db_engine: Engine) -> None:
-
         """
         Menginisialisasi SchemaManager dengan database engine.
 
         Args:
-
             db_engine (Engine): Objek SQLAlchemy Engine untuk koneksi database.
         """
 
@@ -81,11 +69,9 @@ class SchemaManager:
         Menjalankan seluruh perintah SQL yang terdapat dalam sebuah file.
 
         Args:
-
             file_path (Path): Path file SQL yang akan dieksekusi.
 
         Raises:
-        
             FileNotFoundError: Jika file SQL pada file_path tidak ditemukan.
             Exception: Jika terjadi kesalahan saat mengeksekusi perintah SQL.
         """
@@ -127,11 +113,9 @@ class SchemaManager:
 
 
 def initial_stage() -> None:
-
     """Memeriksa koneksi database dan mengeksekusi script schema DDL dasar.
-
+    
     Raises:
-
         Exception: Jika koneksi gagal atau eksekusi DDL mengalami kesalahan.
     """
 

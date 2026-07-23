@@ -2,8 +2,11 @@ version: '3.8'
 
 # Konfigurasi umum untuk service Airflow
 x-airflow-common: &airflow-common
-  image: apache/airflow:2.9.1          
-  
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: pre-capstone3-airflow:2.9.1
+
   environment: &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     # Metadata database (Airflow)
@@ -13,18 +16,17 @@ x-airflow-common: &airflow-common
     AIRFLOW_UID: ${AIRFLOW_UID:-50000}
 
     # Koneksi ke database project (source & warehouse sama)
-    AIRFLOW_CONN_SOURCE_POSTGRES: postgresql://${PRE_CAPS3_USER}:${PRE_CAPS3_PASS}@pre-capstone-3:5432/${PRE_CAPS3_DB}
-    AIRFLOW_CONN_WAREHOUSE_POSTGRES: postgresql://${PRE_CAPS3_USER}:${PRE_CAPS3_PASS}@pre-capstone-3:5432/${PRE_CAPS3_DB}
+    AIRFLOW_CONN_SOURCE_POSTGRES: postgresql://${PRE_CAPS3_USER}:${PRE_CAPS3_PASS}@pre-caps3-alfian:5432/${PRE_CAPS3_DB}
+    AIRFLOW_CONN_WAREHOUSE_POSTGRES: postgresql://${PRE_CAPS3_USER}:${PRE_CAPS3_PASS}@pre-caps3-alfian:5432/${PRE_CAPS3_DB}
 
-    # >>> TAMBAHKAN INI <
     PRE_CAPS3_USER: ${PRE_CAPS3_USER}
     PRE_CAPS3_PASS: ${PRE_CAPS3_PASS}
-    PRE_CAPS3_HOST: pre-capstone-3
+    PRE_CAPS3_HOST: pre-caps3-alfian
     PRE_CAPS3_PORT: "5432"
     PRE_CAPS3_DB: ${PRE_CAPS3_DB}
 
     # scripts python
-    PYTHONPATH: /opt/airflow/scripts  
+    PYTHONPATH: /opt/airflow/scripts
 
     # Path Data Lake di dalam container
     DATA_LAKE_BASE_PATH: /opt/airflow/data_lake
@@ -36,14 +38,14 @@ x-airflow-common: &airflow-common
     - ./plugins:/opt/airflow/plugins
     - ./config:/opt/airflow/config
     - ./data_lake:/opt/airflow/data_lake
-    - ./scripts:/opt/airflow/scripts    # <-- mount folder scripts
-    - ./sql:/opt/airflow/sql    # <-- mount folder scripts
-  
+    - ./scripts:/opt/airflow/scripts
+    - ./sql:/opt/airflow/sql
+
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     pre-airflow-db:
       condition: service_healthy
-    pre-capstone-3:
+    pre-caps3-alfian:
       condition: service_healthy
 
 services:
@@ -70,19 +72,18 @@ services:
       retries: 5
       start_period: 5s
 
-
   # ==================================
   # +      Pre-Capstone-Poject-3     +
   # ==================================
-  pre-capstone-3:
+  pre-caps3-alfian:
     image: postgres:16-alpine
-    container_name: pre-capstone-3
+    container_name: pre-caps3-alfian
     environment:
-      POSTGRES_USER: pre-caps3-user
-      POSTGRES_PASSWORD: pre-caps3-pass
-      POSTGRES_DB: pre-capstone3-db
+      POSTGRES_USER: ${PRE_CAPS3_USER}
+      POSTGRES_PASSWORD: ${PRE_CAPS3_PASS}
+      POSTGRES_DB: ${PRE_CAPS3_DB}
     volumes:
-      - pre-capstone3-data:/var/lib/postgresql/data
+      - pre-caps3-alfian:/var/lib/postgresql/data
     ports:
       - "5447:5432"
     healthcheck:
@@ -131,8 +132,7 @@ services:
     ports:
       - "8084:8080"
     restart: unless-stopped
-    
 
 volumes:
   pre-airflow-metadata-data:
-  pre-capstone3-data:
+  pre-caps3-alfian:

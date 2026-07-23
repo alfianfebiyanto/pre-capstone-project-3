@@ -1,7 +1,6 @@
 # ============================
 # +      Import Library      +
 # ============================
-
 import uuid
 from initial_database import DatabaseConnection
 from sqlalchemy import create_engine, text
@@ -11,11 +10,9 @@ from utils_helper import AuditLogger, setup_logger
 # Set-up Logging
 logger = setup_logger(__name__)
 
-
 # ===============================
 # +      Helper Functions       +
 # ===============================
-
 def validate_bronze_layer(
     engine: Engine | None = None, run_id: uuid.UUID | None = None
 ) -> None:
@@ -336,7 +333,6 @@ def validate_goldmart_layer(
 
 
 if __name__ == "__main__":
-    # Apabila dijalankan langsung, buat 1 run_id bersama untuk ketiga langkah validasi
     shared_run_id = uuid.uuid4()
     validate_bronze_layer(run_id=shared_run_id)
     validate_silver_layer(run_id=shared_run_id)

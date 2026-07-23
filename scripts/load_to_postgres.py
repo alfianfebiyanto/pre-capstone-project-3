@@ -1,7 +1,6 @@
 # ============================
 # +     Import Libarary      +
 # ============================
-
 import io
 import uuid
 import pandas as pd
@@ -11,7 +10,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
 from initial_database import DatabaseConnection
-from utils_helper import STAG_TRIP_TAXI, STAG_ZONE_TAXI, AuditLogger
+from utils_helper import STAG_TAXI_TRIPS, STAG_TAXI_ZONES, AuditLogger
 
 # Set-up logging 
 from utils_helper import setup_logger
@@ -144,12 +143,10 @@ class DataLoader:
     @staticmethod
     def load_parquet(parquet_path: Path, engine: Engine, table: str = "raw_taxi_trips", schema: str = "bronze", integer_cols: list[str] | None = None,
         batch_size: int = 500_000, delimiter: str = "\t", null_rep: str = "\\N", decode_bytes: bool = True, truncate_first: bool = True,) -> None:
-
         """
         Memuat file Parquet ke tabel PostgreSQL secara bertahap menggunakan COPY.
 
         Args:
-
             parquet_path (Path): Path file Parquet yang akan dimuat.
             engine (Engine): Objek SQLAlchemy Engine untuk koneksi database.
             table (str, optional): Nama tabel tujuan. Default "raw_taxi_trips".
@@ -164,11 +161,9 @@ class DataLoader:
                 Default True.
 
         Raises:
-
             FileNotFoundError: Jika file Parquet tidak ditemukan.
             Exception: Jika terjadi kesalahan saat proses pemuatan batch data.
         """
-
         # 1. Pastikan file Parquet tersedia
         if not parquet_path.exists():
             raise FileNotFoundError(f"Parquet file not found at: {parquet_path}")
@@ -264,7 +259,7 @@ def load_postgres_stage(
     try:
         # 3. Load data taxi zone ke Bronze layer
         DataLoader.load_csv(
-            csv_path=STAG_ZONE_TAXI,
+            csv_path=STAG_TAXI_ZONES,
             engine=engine,
             table="raw_taxi_zones",
             schema="bronze",
@@ -274,7 +269,7 @@ def load_postgres_stage(
 
         # 4. Load data taxi trip ke Bronze layer
         DataLoader.load_parquet(
-            parquet_path=STAG_TRIP_TAXI,
+            parquet_path=STAG_TAXI_TRIPS,
             engine=engine,
             table="raw_taxi_trips",
             schema="bronze",

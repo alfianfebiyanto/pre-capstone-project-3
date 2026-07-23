@@ -1,7 +1,6 @@
 # ============================
 # +     Import Libarary      +
 # ============================
-
 import uuid
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -27,27 +26,21 @@ logger = setup_logger(__name__)
 # Definisikan zona waktu Jakarta
 JAKARTA_TZ = ZoneInfo("Asia/Jakarta")
 
-
 # ===============================
 # +      Helper Functions       +
 # ===============================
-
 def get_airflow_run_id(**context) -> uuid.UUID:
-
     """
     Mengonversi `dag_run.run_id` dari Airflow menjadi UUID v5 deterministik
     agar konsisten digunakan sebagai `run_id` di tabel audit.load_audit.
     """
-
     dag_run = context.get("dag_run")
     raw_run_id = dag_run.run_id if dag_run else str(uuid.uuid4())
     return uuid.uuid5(uuid.NAMESPACE_OID, raw_run_id)
 
 
 def print_pipeline_report(**context) -> None:
-
     """Mencetak laporan ringkasan status eksekusi pipeline dalam timezone Asia/Jakarta (WIB)."""
-
     dag_run = context.get("dag_run")
     task_instance = context.get("task_instance")
 
@@ -77,7 +70,6 @@ def print_pipeline_report(**context) -> None:
 # ===============================
 # +    Airflow DAG Definition   +
 # ===============================
-
 default_args = {
     "owner": "fian",
     "depends_on_past": False,

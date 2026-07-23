@@ -20,7 +20,6 @@ logger = setup_logger(__name__)
 # ==========================================
 # +       TRANSFORM SILVER LAYER           +
 # ==========================================
-
 def silver_transform(
     engine: Engine | None = None, run_id: uuid.UUID | None = None
 ) -> None:
@@ -71,11 +70,9 @@ def silver_transform(
         audit.log_failure(audit_id=audit_id, error_message=str(e))
         raise
 
-
 # ==========================================
 # +        TRANSFORM GOLD LAYER            +
 # ==========================================
-
 def goldmart_transform(
     engine: Engine | None = None, run_id: uuid.UUID | None = None
 ) -> None:
@@ -132,8 +129,6 @@ def goldmart_transform(
 
 
 if __name__ == "__main__":
-
-    # Generate 1 run_id bersama untuk eksekusi mandiri lokal
     shared_run_id = uuid.uuid4()
     logger.info("Starting local standalone execution (Run ID: %s)", shared_run_id)
 

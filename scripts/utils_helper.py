@@ -1,7 +1,6 @@
 # =============================
 # +      Import Library       +
 # =============================
-
 import uuid
 import logging
 from pathlib import Path
@@ -14,7 +13,6 @@ from sqlalchemy.engine import Engine
 # ===============================
 # +     Path Configuration      +
 # ===============================
-
 # 1. Base Directory (Root Proyek)
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -24,10 +22,11 @@ RAW_PATH = DATA_LAKE_DIR / "raw"
 STAG_PATH = DATA_LAKE_DIR / "staging"
 
 # 3. File Raw & Staging
-RAW_ZONE_TAXI = RAW_PATH / "taxi-zone.csv"
-RAW_TRIPS_TAXI = RAW_PATH / "taxi-trips.parquet"
-STAG_ZONE_TAXI = STAG_PATH / "stag-zone-taxi.csv"
-STAG_TRIP_TAXI = STAG_PATH / "stag-trip-taxi.parquet"
+RAW_TAXI_ZONES = RAW_PATH / "raw-taxi-zones.csv"
+RAW_TAXI_TRIPS = RAW_PATH / "raw-taxi-trips.parquet"
+STAG_TAXI_ZONES = STAG_PATH / "stag-taxi-zones.csv"
+STAG_TAXI_TRIPS = STAG_PATH / "stag-taxi-trips.parquet"
+
 
 # 4. Folder & File SQL
 SQL_DIR = BASE_DIR / "sql"
@@ -38,15 +37,13 @@ SQL_04_GOLD = SQL_DIR / "04-gold-mart.sql"
 
 # 5. Source URLs
 TAXI_TRIPS_URL = "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2026-01.parquet"
-ZONE_TAXI_URL = "https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv"
+TAXI_ZONES_URL = "https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv"
 
 
 # ===============================
 # +     Logging Helper          +
 # ===============================
-
 def setup_logger(name: str) -> logging.Logger:
-
     """
     Mengonfigurasi dan mengembalikan objek logger standar untuk pipeline.
 
@@ -68,12 +65,10 @@ def setup_logger(name: str) -> logging.Logger:
 # +        Audit Logger         +
 # ===============================
 class AuditLogger:
-
     """
     Helper terpusat untuk mencatat log eksekusi pipeline ke tabel audit.load_audit
     sekaligus mencetaknya ke Python logger (Console / Airflow Task Logs).
     """
-
     def __init__(self, engine: Engine, logger: Optional[logging.Logger] = None):
         self.engine = engine
         self.logger = logger or default_logger
@@ -147,9 +142,7 @@ class AuditLogger:
             raise
 
     def log_failure(self, audit_id: int, error_message: str) -> None:
-
         """Mencetak log FAILED/EXCEPTION ke console dan memperbarui database."""
-
         self.logger.error(
             "FAILED (Audit ID: %s) | Error: %s",
             audit_id,

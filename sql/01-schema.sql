@@ -7,7 +7,6 @@ CREATE SCHEMA IF NOT EXISTS silver;
 CREATE SCHEMA IF NOT EXISTS gold;
 CREATE SCHEMA IF NOT EXISTS audit;
 
-
 -- =========================
 -- +      BRONZE LAYER     +
 -- =========================
@@ -18,7 +17,6 @@ CREATE TABLE IF NOT EXISTS bronze.raw_taxi_zones(
     "borough" VARCHAR(255),
     "zone" VARCHAR(255),
     "service_zone" VARCHAR(255)
-
 );
 
 -- 2. Tabel raw_taxi_trips
@@ -45,7 +43,6 @@ CREATE TABLE IF NOT EXISTS bronze.raw_taxi_trips (
     cbd_congestion_fee NUMERIC(12, 2)
 );
 
-
 -- =========================
 -- +      AUDIT LAYER      +
 -- =========================
@@ -62,7 +59,6 @@ CREATE TABLE IF NOT EXISTS audit.load_audit (
     started_at      TIMESTAMP   NOT NULL DEFAULT NOW(),
     finished_at     TIMESTAMP
 );
-
 
 -- ==========================
 -- +      SILVER LAYER      +
@@ -131,7 +127,6 @@ CREATE TABLE silver.data_quality_issues (
     raw_data       JSONB,
     updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
 
 -- ==========================
 -- +      GOLD LAYER      +
