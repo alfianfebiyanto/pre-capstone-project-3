@@ -61,7 +61,7 @@ Project ini merupakan latihan transisi dari Capstone Project 2 menuju Capstone P
 
 ## 2. Arsitektur Pipeline
 
-![Pipeline Architecture](docs/images/architecture-diagram.png)
+![Pipeline Architecture](docs/images/Arsitektur_Pipeline.png)
 *Gambar 1: Arsitektur Pipeline Data & Medallion Architecture*
 
 ### Rincian Tahapan (Pipeline Stages)
@@ -231,7 +231,7 @@ business_analytics_execution
 pipeline_execution_report
 ```
 
-![Airflow DAG Graph View](docs/images/airflow-dag-graph.png)
+![Airflow DAG Graph View](docs/images/Airflow_Dag_Graph.png)
 *Gambar 2: Tampilan DAG Graph View di Airflow UI (Seluruh Task Berhasil)*
 
 **Kriteria Pipeline Berhasil:**
@@ -251,7 +251,7 @@ Bronze Layer (Raw)  ──▶  Silver Layer (Cleansed)  ──▶  Gold Layer (D
                                                         Audit Schema (Logging)
 ```
 
-![Skema Database PostgreSQL](docs/images/postgres-tables.png)
+![Skema Database PostgreSQL](docs/images/Schema_DB.png)
 *Gambar 3: Struktur Skema dan Tabel PostgreSQL*
 
 ### A. Audit Schema (`audit`)
@@ -299,7 +299,7 @@ Quality check dijalankan **di beberapa titik** (*fail-fast mechanism*), bukan ha
 | **Silver** (`quality_silver_layer`) | Kolom tanggal utama tidak null, `total_amount` ≥ 0, `trip_distance` ≥ 0, tidak ada duplikasi key unik |
 | **Gold** (`quality_gold_layer`) | Tabel mart berhasil terbentuk, row count > 0, query agregasi utama dapat dijalankan |
 
-![Log Data Quality Check](docs/images/data-quality-log.png)
+![Log Data Quality Check](docs/images/Quality_Data_Log.png)
 *Gambar 4: Tangkapan Layar Log Verification & Quality Check Execution*
 
 Semua hasil pengecekan dicatat ke `audit.load_audit` sehingga histori kegagalan/keberhasilan dapat ditelusuri secara transparan.

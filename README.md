@@ -61,7 +61,7 @@ This project is a transitional exercise from Capstone Project 2 toward Capstone 
 
 ## 2. Pipeline Architecture
 
-![Pipeline Architecture](docs/images/architecture-diagram.png)
+![Pipeline Architecture](docs/images/Arsitektur_Pipeline.png)
 *Figure 1: Data Pipeline Architecture & Medallion Architecture*
 
 ### Pipeline Stages
@@ -231,7 +231,7 @@ business_analytics_execution
 pipeline_execution_report
 ```
 
-![Airflow DAG Graph View](docs/images/airflow-dag-graph.png)
+![Airflow DAG Graph View](docs/images/Airflow_Dag_Graph.png)
 *Figure 2: Airflow UI DAG Graph View (All Tasks Successful)*
 
 **Success Criteria:**
@@ -251,7 +251,7 @@ Bronze Layer (Raw)  ──▶  Silver Layer (Cleansed)  ──▶  Gold Layer (D
                                                         Audit Schema (Logging)
 ```
 
-![PostgreSQL Database Schema](docs/images/postgres-tables.png)
+![PostgreSQL Database Schema](docs/images/Schema_DB.png)
 *Figure 3: PostgreSQL Schema & Table Structure*
 
 ### A. Audit Schema (`audit`)
@@ -299,7 +299,7 @@ Quality checks are run **at multiple checkpoints** (a fail-fast mechanism), not 
 | **Silver** (`quality_silver_layer`) | Key date column not null, `total_amount` ≥ 0, `trip_distance` ≥ 0, no duplicate unique keys |
 | **Gold** (`quality_gold_layer`) | Mart table successfully created, row count > 0, main aggregation query runs successfully |
 
-![Data Quality Check Log](docs/images/data-quality-log.png)
+![Data Quality Check Log](docs/images/Quality_Data_Log.png)
 *Figure 4: Screenshot of Verification Logs & Quality Check Execution*
 
 All check results are recorded to `audit.load_audit` so that success/failure history can be traced transparently.
