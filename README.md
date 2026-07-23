@@ -1,10 +1,11 @@
 # Pre-Capstone Project 3 — NYC Taxi Data Pipeline (Medallion Architecture)
 
-[![Stack - Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![Orchestrator - Apache Airflow](https://img.shields.io/badge/Apache%20Airflow-2.x-017CEE?style=for-the-badge&logo=Apache%20Airflow&logoColor=white)](https://airflow.apache.org/)
-[![Database - PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![Infrastructure - Docker](https://img.shields.io/badge/Docker%20Compose-Containerized-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
-
+[![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![SQL](https://img.shields.io/badge/SQL-Advanced-E38C00?style=for-the-badge&logo=sqlite&logoColor=white)](https://en.wikipedia.org/wiki/SQL)
+[![Apache Airflow](https://img.shields.io/badge/Apache%20Airflow-2.9.1-017CEE?style=for-the-badge&logo=Apache%20Airflow&logoColor=white)](https://airflow.apache.org/)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
+        
 An end-to-end local data pipeline for processing the **NYC Taxi** dataset using **Apache Airflow**, **PostgreSQL**, **Python**, and **Docker Compose**, built on a **Medallion Architecture (Bronze → Silver → Gold)** approach complete with **Data Quality Checks**, **Business Analytics Logging**, and **Audit Trail Logging** at every stage.
 
 This project is a transitional exercise from Capstone Project 2 toward Capstone Project 3 (the cloud-based version), focusing on pipeline orchestration, a local data lake, a data warehouse, data transformation, and containerization.
